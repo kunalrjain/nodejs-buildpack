@@ -1,13 +1,6 @@
-#!/usr/bin/env bash
-# bin/compile <build-dir> <cache-dir>
+#!/bin/bash
+set -euo pipefail
 
-# fail fast
-set -e
-
-# debug
-# set -x
-
-# parse and derive params
 BUILD_DIR=$1
 CACHE_DIR=$2
 ENV_DIR=$3
@@ -31,33 +24,6 @@ function indent() {
   esac
 }
 
-# Detect requested channel or default to stable
-if [ -f $ENV_DIR/GOOGLE_CHROME_CHANNEL ]; then
-  channel=$(cat $ENV_DIR/GOOGLE_CHROME_CHANNEL)
-else
-  channel=stable
-fi
-
-# Setup bin and shim locations for desired channel, and detect invalid channels
-BIN_DIR=$BUILD_DIR/.apt/usr/bin
-case "$channel" in
-  "stable")
-    BIN=/app/.apt/opt/google/chrome/chrome
-    SHIM=$BIN_DIR/google-chrome-stable
-    ;;
-  "beta")
-    BIN=/app/.apt/opt/google/chrome-beta/chrome
-    SHIM=$BIN_DIR/google-chrome-beta
-    ;;
-  "unstable")
-    BIN=/app/.apt/opt/google/chrome-unstable/chrome
-    SHIM=$BIN_DIR/google-chrome-unstable
-    ;;
-  *)
-    error "GOOGLE_CHROME_CHANNEL must be 'stable', 'beta', or 'unstable', not '$channel'."
-    ;;
-esac
-
 stack=${STACK:-heroku-16}
 
 # Install correct dependencies according to $STACK
@@ -72,9 +38,6 @@ case "$stack" in
     error "STACK must be 'cedar-14' or 'heroku-16', not '$stack.'"
 esac
 
-indent "Installing Google Chrome from the $channel channel."
-
-PACKAGES="$PACKAGES https://dl.google.com/linux/direct/google-chrome-${channel}_current_amd64.deb"
 
 APT_CACHE_DIR="$CACHE_DIR/apt/cache"
 APT_STATE_DIR="$CACHE_DIR/apt/state"
@@ -107,25 +70,11 @@ for DEB in $(ls -1 $APT_CACHE_DIR/archives/*.deb); do
   dpkg -x $DEB $BUILD_DIR/.apt/
 done
 
+export BUILDPACK_DIR=`dirname $(readlink -f ${BASH_SOURCE%/*})`
+export DEPS_DIR="$BUILD_DIR/.cloudfoundry"
+mkdir -p "$DEPS_DIR/0"
+mkdir -p "$BUILD_DIR/.profile.d"
+echo "export DEPS_DIR=\$HOME/.cloudfoundry" > "$BUILD_DIR/.profile.d/0000_set-deps-dir.sh"
 
-#give environment to later buildpacks
-export | grep -E -e ' (PATH|LD_LIBRARY_PATH|LIBRARY_PATH|INCLUDE_PATH|CPATH|CPPPATH|PKG_CONFIG_PATH)='  > "$LP_DIR/export"
-
-topic "Rewrite package-config files"
-find $BUILD_DIR/.apt -type f -ipath '*/pkgconfig/*.pc' | xargs --no-run-if-empty -n 1 sed -i -e 's!^prefix=\(.*\)$!prefix='"$BUILD_DIR"'/.apt\1!g'
-
-topic "Creating google-chrome shims"
-
-rm $SHIM
-cat <<EOF >$SHIM
-#!/usr/bin/env bash
-exec $BIN --headless --no-sandbox --disable-gpu --remote-debugging-port=9222 \$@
-EOF
-chmod +x $SHIM
-cp $SHIM $BIN_DIR/google-chrome
-
-# export the chrome binary location, so it's easier to tell chromedriver
-# about the non-standard location
-export GOOGLE_CHROME_BIN=$BIN
-export GOOGLE_CHROME_SHIM=$SHIM
-EOF
+$BUILDPACK_DIR/bin/supply "$BUILD_DIR" "$CACHE_DIR" "$DEPS_DIR" 0
+$BUILDPACK_DIR/bin/finalize "$BUILD_DIR" "$CACHE_DIR" "$DEPS_DIR" 0
