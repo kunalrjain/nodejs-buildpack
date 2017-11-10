@@ -1,5 +1,7 @@
 #!/bin/bash
 set -euo pipefail
+set -e
+
 BUILD_DIR=$1
 CACHE_DIR=$2
 ENV_DIR=$3
@@ -23,7 +25,6 @@ function indent() {
   esac
 }
 
-
 # Detect requested channel or default to stable
 if [ -f $ENV_DIR/GOOGLE_CHROME_CHANNEL ]; then
   channel=$(cat $ENV_DIR/GOOGLE_CHROME_CHANNEL)
@@ -31,7 +32,7 @@ else
   channel=stable
 fi
 
-
+# Setup bin and shim locations for desired channel, and detect invalid channels
 BIN_DIR=$BUILD_DIR/.apt/usr/bin
 case "$channel" in
   "stable")
@@ -50,7 +51,6 @@ case "$channel" in
     error "GOOGLE_CHROME_CHANNEL must be 'stable', 'beta', or 'unstable', not '$channel'."
     ;;
 esac
-
 
 stack=${STACK:-heroku-16}
 
@@ -100,6 +100,7 @@ for DEB in $(ls -1 $APT_CACHE_DIR/archives/*.deb); do
   topic "Installing $(basename $DEB)"
   dpkg -x $DEB $BUILD_DIR/.apt/
 done
+
 
 
 echo "Done with my stuff"
