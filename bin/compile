@@ -34,6 +34,9 @@ function indent() {
 stack=${STACK:-heroku-16}
 
 # Install correct dependencies according to $STACK
+
+apt-get install google-chrome
+
 case "$stack" in
   "cedar-14")
     PACKAGES="libxss1"
@@ -55,6 +58,8 @@ APT_OPTIONS="-o debug::nolocking=true -o dir::cache=$APT_CACHE_DIR -o dir::state
 
 topic "Updating apt caches"
 apt-get $APT_OPTIONS update | indent
+
+
 
 for PACKAGE in $PACKAGES; do
   if [[ $PACKAGE == *deb ]]; then
